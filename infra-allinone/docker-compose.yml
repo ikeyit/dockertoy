@@ -1,0 +1,123 @@
+version: "2"
+services:
+  mysql:
+    hostname: mysql.local
+    container_name: mysql
+    image: mysql:${MYSQL_VERSION}
+    environment:
+      - LC_ALL=C.UTF-8
+      - TZ=Asia/Shanghai
+      - MYSQL_ROOT_PASSWORD=nopassword
+      - MYSQL_USER=dev
+      - MYSQL_PASSWORD=nopassword
+    volumes:
+      - ./mysql/conf.d:/etc/mysql/conf.d
+# place sql files in the directory to initialize db when data doesn't exist
+      - ./mysql/init:/docker-entrypoint-initdb.d
+      - ../var/mysql/data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    restart: always
+  redis:
+    hostname: redis.local
+    image: redis:${REDIS_VERSION}
+    container_name: redis
+    environment:
+      - LC_ALL=C.UTF-8
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+      - ../var/redis/data:/data
+      - ../var/redis/logs:/logs
+    ports:
+      - 6379:6379
+    command: /bin/sh -c "redis-server --requirepass nopassword"
+    restart: always
+  rocketmq-nameserver:
+    hostname: rocketmq-nameserver.local
+    image: apache/rocketmq:${ROCKETMQ_VERSION}
+    container_name: rocketmq-nameserver
+    restart: always
+    ports:
+      - 9876:9876
+    volumes:
+      - ../var/rocketmq-nameserver/logs:/home/rocketmq/logs
+      - ../var/rocketmq-nameserver/store:/home/rocketmq/store
+    environment:
+      - LC_ALL=en_US.utf8
+      - TZ=Asia/Shanghai
+      - JAVA_OPT_EXT=-Xms128m -Xmx512m -Xmn128m
+    command: sh mqnamesrv
+  rocketmq-broker1:
+    hostname: rocketmq-broker1.local
+    image: apache/rocketmq:${ROCKETMQ_VERSION}
+    container_name: rocketmq-broker1
+    links:
+      - rocketmq-nameserver
+    restart: always
+    ports:
+      - 10909:10909
+      - 10911:10911
+      - 10912:10912
+    volumes:
+      - ../var/rocketmq-broker1/logs:/home/rocketmq/logs
+      - ../var/rocketmq-broker1/store:/home/rocketmq/store
+      - ./rocketmq/broker1/conf/broker.conf:/opt/rocketmq-${ROCKETMQ_VERSION}/conf/broker.conf
+    environment:
+      - NAMESRV_ADDR=rocketmq-nameserver:9876
+      - LC_ALL=en_US.utf8
+      - TZ=Asia/Shanghai
+      - JAVA_OPT_EXT=-Xms128m -Xmx512m -Xmn128m -XX:-AssumeMP
+    command: sh mqbroker -c /opt/rocketmq-${ROCKETMQ_VERSION}/conf/broker.conf autoCreateTopicEnable=true
+  rocketmq-broker2:
+    hostname: rocketmq-broker2.local
+    image: apache/rocketmq:${ROCKETMQ_VERSION}
+    container_name: rocketmq-broker2
+    links:
+      - rocketmq-nameserver
+    restart: always
+    ports:
+      - 10919:10909
+      - 10921:10911
+      - 10922:10912
+    volumes:
+      - ../var/rocketmq-broker2/logs:/home/rocketmq/logs
+      - ../var/rocketmq-broker2/store:/home/rocketmq/store
+      - ./rocketmq/broker2/conf/broker.conf:/opt/rocketmq-${ROCKETMQ_VERSION}/conf/broker.conf
+    environment:
+      - NAMESRV_ADDR=rocketmq-nameserver:9876
+      - LC_ALL=en_US.utf8
+      - TZ=Asia/Shanghai
+      - JAVA_OPT_EXT=-Xms128m -Xmx512m -Xmn128m -XX:-AssumeMP
+    command: sh mqbroker -c /opt/rocketmq-${ROCKETMQ_VERSION}/conf/broker.conf autoCreateTopicEnable=true
+  rocketmq-dashboard:
+    hostname: rocketmq-dashboard.local
+    image: apacherocketmq/rocketmq-dashboard:latest
+    container_name: rocketmq-dashboard
+    restart: always
+    ports:
+      - 18080:8080
+    links:
+      - rocketmq-nameserver
+    environment:
+      - LC_ALL=en_US.utf8
+      - TZ=Asia/Shanghai
+      - NAMESRV_ADDR=rocketmq-nameserver:9876
+#  nacos:
+#    hostname: nacos.ikeyit
+#    image: nacos/nacos-server:latest
+#    container_name: nacos
+#    environment:
+#      - LC_ALL=en_US.utf8
+#      - TZ=Asia/Shanghai
+#      - PREFER_HOST_MODE=hostname
+#      - MODE=standalone
+#      - JVM_XMS=128m
+#      - JVM_XMX=512m
+#      - JVM_XMN=128m
+#    volumes:
+#      - ./nacos/init.d/custom.properties:/home/nacos/init.d/custom.properties
+#      - ../var/nacos/logs/:/home/nacos/logs
+#    ports:
+#      - "8848:8848"
+#    restart: always
